@@ -111,10 +111,12 @@ function captureTab() {
     chrome.runtime.sendMessage({ action: "captureTab" }, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
+      } else if (response?.error) {
+        reject(new Error(response.error));
       } else if (response?.screenshot) {
         resolve(response.screenshot);
       } else {
-        reject(new Error("Failed to capture screenshot."));
+        reject(new Error("Failed to capture screenshot. Make sure you're on a webpage."));
       }
     });
   });
