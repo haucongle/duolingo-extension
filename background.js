@@ -46,7 +46,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function captureAndTranscribe(tabId) {
   const target = { tabId };
 
-  // Attach debugger once for both screenshot and network interception
   await new Promise((resolve, reject) => {
     chrome.debugger.attach(target, "1.3", () => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
@@ -64,36 +63,16 @@ async function captureAndTranscribe(tabId) {
     });
     screenshot = "data:image/png;base64," + ssResult.data;
 
-    // 2. Enable network monitoring to intercept audio file requests
-    await sendDebuggerCommand(tabId, "Network.enable");
+    // 2. Extract audio URLs from page using multiple strategies
+    const audioUrls = await extractAudioUrlsFromPage(tabId);
 
-    const audioUrls = [];
-    const audioListener = (source, method, params) => {
-      if (source.tabId !== tabId || method !== "Network.requestWillBeSent") return;
-      const url = params.request?.url || "";
-      if (isAudioUrl(url) && !audioUrls.includes(url)) {
-        audioUrls.push(url);
-      }
-    };
-
-    chrome.debugger.onEvent.addListener(audioListener);
-
-    try {
-      // 3. Tell content script to click audio buttons
-      const clickResult = await sendTabMessage(tabId, { action: "clickAudioButtons" });
-
-      // 4. Wait a bit for any remaining network requests
-      if (clickResult?.clickedCount > 0) {
-        await sleep(500);
-      }
-    } catch (e) {
-      // Content script not available or no buttons found
+    // 3. If no URLs found via page inspection, try network interception as fallback
+    if (audioUrls.length === 0) {
+      const networkUrls = await extractAudioViaNetwork(tabId);
+      audioUrls.push(...networkUrls);
     }
 
-    chrome.debugger.onEvent.removeListener(audioListener);
-    await sendDebuggerCommand(tabId, "Network.disable");
-
-    // 5. Transcribe collected audio URLs
+    // 4. Transcribe collected audio
     if (audioUrls.length > 0) {
       const sources = audioUrls.map((url, i) => ({
         index: i + 1,
@@ -109,20 +88,118 @@ async function captureAndTranscribe(tabId) {
   return { screenshot, transcriptions };
 }
 
+async function extractAudioUrlsFromPage(tabId) {
+  const script = `
+    (function() {
+      const urls = [];
+      const seen = new Set();
+
+      function addUrl(url) {
+        if (!url || seen.has(url) || url.startsWith('data:')) return;
+        seen.add(url);
+        urls.push(url);
+      }
+
+      // Strategy 1: Performance API - lists ALL resources loaded by the page
+      try {
+        performance.getEntriesByType('resource').forEach(entry => {
+          const url = entry.name;
+          if (/\\.(mp3|ogg|wav|m4a|aac|opus|webm|flac)(\\?|$)/i.test(url) ||
+              url.includes('d1vq87e9lcf771.cloudfront.net') ||
+              (url.includes('cloudfront.net') && /audio|tts|sound/i.test(url))) {
+            addUrl(url);
+          }
+        });
+      } catch(e) {}
+
+      // Strategy 2: Howler.js (Duolingo's audio library)
+      try {
+        if (window.Howler && window.Howler._howls) {
+          window.Howler._howls.forEach(howl => {
+            const srcs = Array.isArray(howl._src) ? howl._src : [howl._src];
+            srcs.forEach(s => { if (s) addUrl(s); });
+          });
+        }
+      } catch(e) {}
+
+      // Strategy 3: HTML audio elements
+      try {
+        document.querySelectorAll('audio, audio source').forEach(el => {
+          addUrl(el.src || el.currentSrc);
+        });
+      } catch(e) {}
+
+      // Strategy 4: React fiber / Duolingo internal state
+      try {
+        const challengeEl = document.querySelector('[data-test*="challenge"]');
+        if (challengeEl) {
+          const fiberKey = Object.keys(challengeEl).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+          if (fiberKey) {
+            const fiber = challengeEl[fiberKey];
+            const json = JSON.stringify(fiber?.memoizedProps || fiber?.return?.memoizedProps || {});
+            const audioMatches = json.match(/https?:\\/\\/[^"'\\s]+\\.(mp3|ogg|wav)[^"'\\s]*/gi);
+            if (audioMatches) audioMatches.forEach(u => addUrl(u));
+          }
+        }
+      } catch(e) {}
+
+      // Strategy 5: Scan all script/inline data for audio URLs
+      try {
+        const bodyHtml = document.body.innerHTML;
+        const cdnMatches = bodyHtml.match(/https?:\\/\\/d1vq87e9lcf771\\.cloudfront\\.net\\/[^"'\\s<>]+/gi);
+        if (cdnMatches) cdnMatches.forEach(u => addUrl(u));
+        const audioFileMatches = bodyHtml.match(/https?:\\/\\/[^"'\\s<>]+\\.(mp3|ogg|wav)(\\?[^"'\\s<>]*)?/gi);
+        if (audioFileMatches) audioFileMatches.forEach(u => addUrl(u));
+      } catch(e) {}
+
+      return urls;
+    })()
+  `;
+
+  try {
+    const result = await sendDebuggerCommand(tabId, "Runtime.evaluate", {
+      expression: script,
+      returnByValue: true
+    });
+    return result?.result?.value || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function extractAudioViaNetwork(tabId) {
+  const audioUrls = [];
+
+  await sendDebuggerCommand(tabId, "Network.enable");
+
+  const audioListener = (source, method, params) => {
+    if (source.tabId !== tabId || method !== "Network.requestWillBeSent") return;
+    const url = params.request?.url || "";
+    if (isAudioUrl(url) && !audioUrls.includes(url)) {
+      audioUrls.push(url);
+    }
+  };
+
+  chrome.debugger.onEvent.addListener(audioListener);
+
+  try {
+    await sendTabMessage(tabId, { action: "clickAudioButtons" });
+    await sleep(1000);
+  } catch (e) {}
+
+  chrome.debugger.onEvent.removeListener(audioListener);
+  await sendDebuggerCommand(tabId, "Network.disable");
+
+  return audioUrls;
+}
+
 function isAudioUrl(url) {
   if (!url || url.startsWith('data:')) return false;
   const lower = url.toLowerCase();
-
-  const audioExtensions = ['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.webm', '.opus', '.flac'];
-  if (audioExtensions.some(ext => lower.includes(ext))) return true;
-
-  // Duolingo CDN patterns for audio
+  if (/\.(mp3|ogg|wav|m4a|aac|webm|opus|flac)(\?|$)/.test(lower)) return true;
   if (lower.includes('d1vq87e9lcf771.cloudfront.net')) return true;
-  if (lower.includes('d35aaqx5ub95lt.cloudfront.net') && lower.includes('audio')) return true;
-  if (lower.includes('duolingo') && (lower.includes('tts') || lower.includes('audio'))) return true;
-
-  if (lower.includes('/audio/') || lower.includes('/tts/') || lower.includes('/sound/')) return true;
-
+  if (lower.includes('cloudfront.net') && /audio|tts|sound/.test(lower)) return true;
+  if (/\/(audio|tts|sound)\//.test(lower)) return true;
   return false;
 }
 
