@@ -5,12 +5,10 @@
   "description": "Learn Duolingo faster — capture exercises and get AI-powered answers instantly.",
   "permissions": [
     "activeTab",
+    "debugger",
     "storage",
     "tabs",
     "sidePanel"
-  ],
-  "optional_host_permissions": [
-    "<all_urls>"
   ],
   "action": {
     "default_icon": {

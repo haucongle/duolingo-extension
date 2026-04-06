@@ -6,36 +6,78 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command === "solve-exercise") {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url?.includes("duolingo.com")) {
-      captureAndSolve(tab);
+      const screenshot = await captureWithDebugger(tab.id);
+      const result = await analyzeScreenshot(screenshot);
+      chrome.tabs.sendMessage(tab.id, { action: "showAnswer", answer: result });
     }
   }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "captureTab") {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) throw new Error("No active tab found.");
+        const screenshot = await captureWithDebugger(tab.id);
+        sendResponse({ screenshot });
+      } catch (err) {
+        sendResponse({ error: err.message });
+      }
+    })();
+    return true;
+  }
+
   if (message.action === "solveFromContent") {
-    handleSolveRequest(message.screenshot, sender.tab?.id).then(sendResponse);
+    (async () => {
+      try {
+        const screenshot = await captureWithDebugger(sender.tab.id);
+        const result = await analyzeScreenshot(screenshot);
+        chrome.tabs.sendMessage(sender.tab.id, { action: "showAnswer", answer: result });
+        sendResponse({ success: true, answer: result });
+      } catch (err) {
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
     return true;
   }
 });
 
-async function captureAndSolve(tab) {
-  const screenshot = await chrome.tabs.captureVisibleTab(null, { format: "png" });
-  const result = await analyzeScreenshot(screenshot);
-  chrome.tabs.sendMessage(tab.id, {
-    action: "showAnswer",
-    answer: result
+function sendDebuggerCommand(tabId, method, params = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.sendCommand({ tabId }, method, params, (result) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(result);
+      }
+    });
   });
 }
 
-async function handleSolveRequest(screenshot, tabId) {
+async function captureWithDebugger(tabId) {
+  const target = { tabId };
+
+  await new Promise((resolve, reject) => {
+    chrome.debugger.attach(target, "1.3", () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve();
+      }
+    });
+  });
+
   try {
-    const result = await analyzeScreenshot(screenshot);
-    if (tabId) {
-      chrome.tabs.sendMessage(tabId, { action: "showAnswer", answer: result });
-    }
-    return { success: true, answer: result };
-  } catch (err) {
-    return { success: false, error: err.message };
+    const result = await sendDebuggerCommand(tabId, "Page.captureScreenshot", {
+      format: "png",
+      quality: 100,
+      fromSurface: true
+    });
+
+    return "data:image/png;base64," + result.data;
+  } finally {
+    chrome.debugger.detach(target, () => {});
   }
 }
 
