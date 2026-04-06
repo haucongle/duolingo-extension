@@ -2,18 +2,18 @@
   --green: #58CC02;
   --green-dark: #46a302;
   --green-light: #d7ffb8;
-  --bg: #131f24;
-  --bg-card: #1a2c35;
-  --bg-input: #0f1a1f;
-  --text: #f0f4f5;
-  --text-muted: #8ea5b0;
-  --border: #2a3f4a;
-  --danger: #ff4b4b;
-  --danger-bg: #2a1010;
-  --warning: #ffc800;
-  --warning-bg: #2a2510;
-  --info: #1cb0f6;
-  --info-bg: #0f1f2a;
+  --bg: #ffffff;
+  --bg-card: #f7f7f7;
+  --bg-input: #ffffff;
+  --text: #3c3c3c;
+  --text-muted: #777777;
+  --border: #e5e5e5;
+  --danger: #ea2b2b;
+  --danger-bg: #fff0f0;
+  --warning: #c58600;
+  --warning-bg: #fff8e5;
+  --info: #1899d6;
+  --info-bg: #eef8ff;
   --radius: 12px;
   --radius-sm: 8px;
 }
@@ -205,19 +205,19 @@ kbd {
 .message-box.warning {
   background: var(--warning-bg);
   color: var(--warning);
-  border: 1px solid rgba(255, 200, 0, 0.15);
+  border: 1px solid rgba(197, 134, 0, 0.2);
 }
 
 .message-box.info {
   background: var(--info-bg);
   color: var(--info);
-  border: 1px solid rgba(28, 176, 246, 0.15);
+  border: 1px solid rgba(24, 153, 214, 0.2);
 }
 
 .message-box.danger {
   background: var(--danger-bg);
   color: var(--danger);
-  border: 1px solid rgba(255, 75, 75, 0.15);
+  border: 1px solid rgba(234, 43, 43, 0.2);
 }
 
 .message-box svg {
