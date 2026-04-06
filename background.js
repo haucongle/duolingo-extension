@@ -28,6 +28,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "exerciseChanged") {
+    chrome.runtime.sendMessage({ action: "exerciseChanged" }).catch(() => {});
+    return;
+  }
+
   if (message.action === "captureTab") {
     (async () => {
       try {

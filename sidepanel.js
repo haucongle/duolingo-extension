@@ -66,10 +66,12 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.action === "exerciseChanged") {
     result.classList.add("hidden");
     errorEl.classList.add("hidden");
-    answerText.textContent = "";
+    answerText.innerHTML = "";
 
     if (autoSolveToggle.checked && !solving) {
-      solveBtn.click();
+      setTimeout(() => {
+        if (!solving) solveBtn.click();
+      }, 300);
     }
   }
 });

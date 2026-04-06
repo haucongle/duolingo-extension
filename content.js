@@ -32,20 +32,28 @@ function getChallengeSignature() {
 function watchForExerciseChanges() {
   const target = document.querySelector('#root') || document.body;
   lastChallengeSignature = getChallengeSignature();
+  let debounceTimer = null;
 
   const observer = new MutationObserver(() => {
-    const newSig = getChallengeSignature();
-    if (newSig && newSig !== lastChallengeSignature) {
-      lastChallengeSignature = newSig;
-      removeOverlay();
-      chrome.runtime.sendMessage({ action: "exerciseChanged" });
-    }
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const newSig = getChallengeSignature();
+      if (newSig && newSig !== lastChallengeSignature) {
+        lastChallengeSignature = newSig;
+        removeOverlay();
+        chrome.runtime.sendMessage({ action: "exerciseChanged" }).catch(() => {});
+      }
+    }, 500);
   });
 
   observer.observe(target, { childList: true, subtree: true });
 }
 
-watchForExerciseChanges();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", watchForExerciseChanges);
+} else {
+  watchForExerciseChanges();
+}
 
 async function clickAudioButtonsSequentially() {
   const buttons = findAudioButtons();
