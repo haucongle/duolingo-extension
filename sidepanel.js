@@ -122,7 +122,7 @@ solveBtn.addEventListener("click", async () => {
       loadingText.textContent = "Analyzing exercise...";
     }
     const answer = await solveWithAI(screenshot, transcriptions);
-    answerText.textContent = answer;
+    renderAnswer(answer);
     result.classList.remove("hidden");
   } catch (err) {
     errorText.textContent = err.message;
@@ -135,10 +135,94 @@ solveBtn.addEventListener("click", async () => {
 });
 
 copyBtn.addEventListener("click", () => {
-  navigator.clipboard.writeText(answerText.textContent);
+  const shortAnswer = $("#shortAnswer");
+  navigator.clipboard.writeText(shortAnswer ? shortAnswer.textContent : answerText.textContent);
   copyBtn.title = "Copied!";
   setTimeout(() => { copyBtn.title = "Copy"; }, 1500);
 });
+
+function renderAnswer(raw) {
+  answerText.innerHTML = "";
+
+  const parsed = parseAnswer(raw);
+
+  if (parsed.type) {
+    const typeEl = document.createElement("div");
+    typeEl.className = "answer-type";
+    typeEl.textContent = parsed.type;
+    answerText.appendChild(typeEl);
+  }
+
+  if (parsed.answer) {
+    const ansEl = document.createElement("div");
+    ansEl.id = "shortAnswer";
+    ansEl.className = "answer-short";
+    ansEl.textContent = parsed.answer;
+    answerText.appendChild(ansEl);
+  }
+
+  if (parsed.howToInput) {
+    const howEl = document.createElement("div");
+    howEl.className = "answer-how";
+    howEl.textContent = parsed.howToInput;
+    answerText.appendChild(howEl);
+  }
+
+  if (parsed.details) {
+    const details = document.createElement("details");
+    details.className = "answer-details";
+    const summary = document.createElement("summary");
+    summary.textContent = "Show details";
+    details.appendChild(summary);
+    const body = document.createElement("div");
+    body.className = "answer-details-body";
+    body.textContent = parsed.details;
+    details.appendChild(body);
+    answerText.appendChild(details);
+  }
+
+  if (!parsed.answer && !parsed.type) {
+    answerText.textContent = raw;
+  }
+}
+
+function parseAnswer(text) {
+  const result = { type: "", answer: "", howToInput: "", details: "" };
+  const lines = text.split("\n");
+  const sections = [];
+  let currentSection = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (/^📝\s*EXERCISE TYPE:/i.test(trimmed)) {
+      result.type = trimmed.replace(/^📝\s*EXERCISE TYPE:\s*/i, "").trim();
+    } else if (/^✅\s*CORRECT ANSWER:/i.test(trimmed)) {
+      currentSection = "answer";
+      const val = trimmed.replace(/^✅\s*CORRECT ANSWER:\s*/i, "").trim();
+      if (val) result.answer = val;
+    } else if (/^🎯\s*HOW TO INPUT:/i.test(trimmed)) {
+      currentSection = "how";
+      const val = trimmed.replace(/^🎯\s*HOW TO INPUT:\s*/i, "").trim();
+      if (val) result.howToInput = val;
+    } else if (/^(📋|💡)/.test(trimmed)) {
+      currentSection = "details";
+      sections.push(trimmed);
+    } else if (trimmed) {
+      if (currentSection === "answer" && !result.answer) {
+        result.answer = trimmed;
+        currentSection = null;
+      } else if (currentSection === "how") {
+        result.howToInput += (result.howToInput ? "\n" : "") + trimmed;
+      } else if (currentSection === "details" || currentSection === null) {
+        sections.push(trimmed);
+      }
+    }
+  }
+
+  result.details = sections.join("\n");
+  return result;
+}
 
 function captureAndTranscribe() {
   return new Promise((resolve, reject) => {
