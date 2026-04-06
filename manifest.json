@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Duolingo AI Solver",
+  "version": "1.0.0",
+  "description": "Learn Duolingo faster — capture exercises and get AI-powered answers instantly.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.duolingo.com/*",
+    "https://api.openai.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.duolingo.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "commands": {
+    "solve-exercise": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "Capture and solve current exercise"
+    }
+  }
+}

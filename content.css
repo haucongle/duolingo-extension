@@ -1,0 +1,109 @@
+#duo-ai-overlay {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 340px;
+  max-height: 420px;
+  background: #1a2c35;
+  border: 1px solid #2a3f4a;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(88, 204, 2, 0.1);
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #f0f4f5;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+}
+
+#duo-ai-overlay.duo-ai-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.duo-ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #2a3f4a;
+}
+
+.duo-ai-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #58CC02;
+}
+
+.duo-ai-close {
+  background: none;
+  border: none;
+  color: #8ea5b0;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.duo-ai-close:hover {
+  color: #f0f4f5;
+}
+
+.duo-ai-body {
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  max-height: 300px;
+  flex: 1;
+}
+
+.duo-ai-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.duo-ai-body::-webkit-scrollbar-thumb {
+  background: #2a3f4a;
+  border-radius: 3px;
+}
+
+.duo-ai-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #2a3f4a;
+}
+
+.duo-ai-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #58CC02;
+  color: #fff;
+}
+
+.duo-ai-btn:hover {
+  background: #46a302;
+}
+
+.duo-ai-btn-ghost {
+  background: transparent;
+  border: 1px solid #2a3f4a;
+  color: #8ea5b0;
+}
+
+.duo-ai-btn-ghost:hover {
+  background: #0f1a1f;
+  color: #f0f4f5;
+}
