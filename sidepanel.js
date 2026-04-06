@@ -150,13 +150,6 @@ function renderAnswer(raw) {
 
   const parsed = parseAnswer(raw);
 
-  if (parsed.type) {
-    const typeEl = document.createElement("div");
-    typeEl.className = "answer-type";
-    typeEl.textContent = parsed.type;
-    answerText.appendChild(typeEl);
-  }
-
   if (parsed.answer) {
     const ansEl = document.createElement("div");
     ansEl.id = "shortAnswer";
@@ -165,27 +158,21 @@ function renderAnswer(raw) {
     answerText.appendChild(ansEl);
   }
 
-  if (parsed.howToInput) {
-    const howEl = document.createElement("div");
-    howEl.className = "answer-how";
-    howEl.textContent = parsed.howToInput;
-    answerText.appendChild(howEl);
-  }
-
-  if (parsed.details) {
+  const rest = [parsed.type, parsed.howToInput, parsed.details].filter(Boolean).join("\n\n");
+  if (rest) {
     const details = document.createElement("details");
     details.className = "answer-details";
     const summary = document.createElement("summary");
-    summary.textContent = "Show details";
+    summary.textContent = "More";
     details.appendChild(summary);
     const body = document.createElement("div");
     body.className = "answer-details-body";
-    body.textContent = parsed.details;
+    body.textContent = rest;
     details.appendChild(body);
     answerText.appendChild(details);
   }
 
-  if (!parsed.answer && !parsed.type) {
+  if (!parsed.answer) {
     answerText.textContent = raw;
   }
 }
