@@ -20,24 +20,35 @@ const noApiKey = $("#noApiKey");
 let isOnDuolingo = false;
 let hasApiKey = false;
 
+async function checkTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  isOnDuolingo = tab?.url?.includes("duolingo.com") ?? false;
+
+  if (isOnDuolingo) {
+    notOnDuolingo.classList.add("hidden");
+  } else {
+    notOnDuolingo.classList.remove("hidden");
+  }
+
+  solveBtn.disabled = !isOnDuolingo || !hasApiKey;
+}
+
 async function init() {
   const { apiKey } = await chrome.storage.local.get("apiKey");
   hasApiKey = !!apiKey;
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  isOnDuolingo = tab?.url?.includes("duolingo.com") ?? false;
 
   if (!hasApiKey) {
     noApiKey.classList.remove("hidden");
     settingsPanel.classList.remove("hidden");
   }
 
-  if (!isOnDuolingo) {
-    notOnDuolingo.classList.remove("hidden");
-  }
-
-  solveBtn.disabled = !isOnDuolingo || !hasApiKey;
+  await checkTab();
 }
+
+chrome.tabs.onActivated.addListener(() => checkTab());
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url) checkTab();
+});
 
 settingsBtn.addEventListener("click", () => {
   settingsPanel.classList.toggle("hidden");

@@ -1,3 +1,7 @@
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+});
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "solve-exercise") {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
