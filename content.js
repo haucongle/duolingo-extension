@@ -1,4 +1,5 @@
 let overlay = null;
+let lastChallengeSignature = "";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "showAnswer") {
@@ -10,6 +11,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+function getChallengeSignature() {
+  const challenge = document.querySelector('[data-test*="challenge"]');
+  if (!challenge) return "";
+  const heading = document.querySelector('h1, [data-test="challenge-header"]');
+  const tokens = document.querySelectorAll('[data-test="challenge-tap-token-text"]');
+  const choices = document.querySelectorAll('[data-test="challenge-choice"]');
+  const textArea = document.querySelector('[data-test="challenge-translate-input"]');
+  const parts = [
+    heading?.textContent || "",
+    [...tokens].map(t => t.textContent).join("|"),
+    [...choices].map(c => c.textContent).join("|"),
+    textArea?.value || "",
+    challenge.children.length
+  ];
+  return parts.join(":::");
+}
+
+function watchForExerciseChanges() {
+  const target = document.querySelector('#root') || document.body;
+  lastChallengeSignature = getChallengeSignature();
+
+  const observer = new MutationObserver(() => {
+    const newSig = getChallengeSignature();
+    if (newSig && newSig !== lastChallengeSignature) {
+      lastChallengeSignature = newSig;
+      removeOverlay();
+      chrome.runtime.sendMessage({ action: "exerciseChanged" });
+    }
+  });
+
+  observer.observe(target, { childList: true, subtree: true });
+}
+
+watchForExerciseChanges();
 
 async function clickAudioButtonsSequentially() {
   const buttons = findAudioButtons();

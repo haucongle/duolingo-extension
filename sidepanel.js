@@ -50,6 +50,30 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url) checkTab();
 });
 
+const autoSolveToggle = $("#autoSolveToggle");
+
+chrome.storage.local.get("autoSolve", ({ autoSolve }) => {
+  autoSolveToggle.checked = !!autoSolve;
+});
+
+autoSolveToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ autoSolve: autoSolveToggle.checked });
+});
+
+let solving = false;
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.action === "exerciseChanged") {
+    result.classList.add("hidden");
+    errorEl.classList.add("hidden");
+    answerText.textContent = "";
+
+    if (autoSolveToggle.checked && !solving) {
+      solveBtn.click();
+    }
+  }
+});
+
 settingsBtn.addEventListener("click", () => {
   settingsPanel.classList.toggle("hidden");
 });
@@ -81,6 +105,8 @@ saveKeyBtn.addEventListener("click", async () => {
 });
 
 solveBtn.addEventListener("click", async () => {
+  if (solving) return;
+  solving = true;
   solveBtn.disabled = true;
   result.classList.add("hidden");
   errorEl.classList.add("hidden");
@@ -104,6 +130,7 @@ solveBtn.addEventListener("click", async () => {
   } finally {
     loading.classList.add("hidden");
     solveBtn.disabled = false;
+    solving = false;
   }
 });
 
