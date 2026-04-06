@@ -5,97 +5,83 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     showOverlay(message.answer);
   }
 
-  if (message.action === "extractAudio") {
-    extractAudioSources().then(sendResponse);
+  if (message.action === "clickAudioButtons") {
+    clickAudioButtonsSequentially().then(sendResponse);
     return true;
   }
 });
 
-async function extractAudioSources() {
-  const results = [];
+async function clickAudioButtonsSequentially() {
+  const buttons = findAudioButtons();
+  const clicked = [];
 
-  const speakerButtons = document.querySelectorAll(
-    '[data-test="speaker-button"], ' +
-    'button[class*="_3lUBd"], ' +
-    '[data-test*="challenge"] button[aria-label]'
-  );
+  for (let i = 0; i < buttons.length; i++) {
+    buttons[i].click();
+    clicked.push(i + 1);
+    await sleep(800);
+  }
 
-  const challengeButtons = [];
-  document.querySelectorAll('[data-test="challenge-tap-token"], [data-test="challenge-choice"]').forEach(el => {
-    const btn = el.querySelector('button') || el;
-    const speakerBtn = el.querySelector('[data-test="speaker-button"]') ||
-                       el.querySelector('button[class*="sound"]') ||
-                       el.querySelector('svg') ? btn : null;
-    if (speakerBtn) challengeButtons.push(btn);
+  return { clickedCount: clicked.length, buttonIndices: clicked };
+}
+
+function findAudioButtons() {
+  const found = [];
+
+  // Strategy 1: Duolingo's data-test="challenge-tap-token" with audio inside
+  document.querySelectorAll('[data-test="challenge-tap-token"]').forEach(token => {
+    const hasSpeaker = token.querySelector('[data-test="speaker-button"]') ||
+                       token.querySelector('svg');
+    const hasNoText = !token.querySelector('[data-test="challenge-tap-token-text"]')?.textContent?.trim();
+    if (hasSpeaker && hasNoText) {
+      const btn = token.querySelector('button') || token;
+      found.push(btn);
+    }
   });
 
-  const allButtons = speakerButtons.length > 0 ? [...speakerButtons] : challengeButtons;
+  if (found.length > 0) return found;
 
-  if (allButtons.length === 0) {
-    const allBtns = document.querySelectorAll('button');
-    allBtns.forEach(btn => {
-      const hasSpeakerIcon = btn.querySelector('svg path[d*="M3"]') ||
-                             btn.querySelector('[class*="speaker"]') ||
-                             btn.querySelector('[class*="sound"]') ||
-                             btn.querySelector('[class*="audio"]');
-      const hasWaveform = btn.textContent === '' && btn.querySelector('svg');
-      if (hasSpeakerIcon || hasWaveform) {
-        allButtons.push(btn);
+  // Strategy 2: Look for speaker-button test attributes
+  const speakerBtns = document.querySelectorAll('[data-test="speaker-button"]');
+  if (speakerBtns.length > 0) return [...speakerBtns];
+
+  // Strategy 3: Find buttons in the challenge area that have audio waveform SVGs but no readable text
+  const challengeArea = document.querySelector('[data-test*="challenge"]') ||
+                        document.querySelector('[class*="challenge"]') ||
+                        document.querySelector('main');
+
+  if (challengeArea) {
+    challengeArea.querySelectorAll('button').forEach(btn => {
+      const rect = btn.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) return;
+
+      const hasSvg = btn.querySelector('svg');
+      const textContent = btn.textContent?.replace(/\d+/g, '').trim();
+      const looksLikeAudio = hasSvg && textContent.length === 0;
+
+      if (looksLikeAudio) {
+        found.push(btn);
       }
     });
   }
 
-  const audiosBefore = new Set(
-    [...document.querySelectorAll('audio')].map(a => a.currentSrc || a.src).filter(Boolean)
-  );
+  if (found.length > 0) return found;
 
-  for (let i = 0; i < allButtons.length; i++) {
-    const btn = allButtons[i];
-    const parent = btn.closest('[data-test*="challenge"]') || btn.parentElement;
-    const label = parent?.querySelector('[data-test="challenge-tap-token-text"]')?.textContent ||
-                  parent?.textContent?.trim()?.substring(0, 50) || `Audio ${i + 1}`;
+  // Strategy 4: Broadest - any visible button with an SVG speaker icon and no text
+  document.querySelectorAll('button').forEach(btn => {
+    const rect = btn.getBoundingClientRect();
+    if (rect.width < 30 || rect.height < 30) return;
+    if (rect.top < 0 || rect.top > window.innerHeight) return;
 
-    btn.click();
-    await sleep(600);
+    const svgs = btn.querySelectorAll('svg');
+    if (svgs.length === 0) return;
 
-    const audiosAfter = document.querySelectorAll('audio');
-    let audioUrl = null;
-
-    for (const audio of audiosAfter) {
-      const src = audio.currentSrc || audio.src;
-      if (src && !audiosBefore.has(src)) {
-        audioUrl = src;
-        audiosBefore.add(src);
-        break;
-      }
+    const visibleText = btn.textContent?.replace(/\s+/g, '').replace(/\d+/g, '');
+    if (visibleText.length === 0) {
+      found.push(btn);
     }
+  });
 
-    if (!audioUrl) {
-      for (const audio of audiosAfter) {
-        const src = audio.currentSrc || audio.src;
-        if (src) {
-          audioUrl = src;
-          break;
-        }
-      }
-    }
-
-    if (audioUrl) {
-      results.push({ index: i + 1, label, url: audioUrl });
-    }
-  }
-
-  if (results.length === 0) {
-    const allAudios = document.querySelectorAll('audio');
-    allAudios.forEach((audio, i) => {
-      const src = audio.currentSrc || audio.src;
-      if (src) {
-        results.push({ index: i + 1, label: `Audio ${i + 1}`, url: src });
-      }
-    });
-  }
-
-  return { audioSources: results, hasAudio: results.length > 0 };
+  return found;
 }
 
 function sleep(ms) {

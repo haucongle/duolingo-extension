@@ -44,19 +44,90 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function captureAndTranscribe(tabId) {
-  const screenshot = await captureWithDebugger(tabId);
+  const target = { tabId };
 
+  // Attach debugger once for both screenshot and network interception
+  await new Promise((resolve, reject) => {
+    chrome.debugger.attach(target, "1.3", () => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve();
+    });
+  });
+
+  let screenshot;
   let transcriptions = [];
+
   try {
-    const audioData = await sendTabMessage(tabId, { action: "extractAudio" });
-    if (audioData?.hasAudio && audioData.audioSources.length > 0) {
-      transcriptions = await transcribeAllAudio(audioData.audioSources);
+    // 1. Capture screenshot
+    const ssResult = await sendDebuggerCommand(tabId, "Page.captureScreenshot", {
+      format: "png", quality: 100, fromSurface: true
+    });
+    screenshot = "data:image/png;base64," + ssResult.data;
+
+    // 2. Enable network monitoring to intercept audio file requests
+    await sendDebuggerCommand(tabId, "Network.enable");
+
+    const audioUrls = [];
+    const audioListener = (source, method, params) => {
+      if (source.tabId !== tabId || method !== "Network.requestWillBeSent") return;
+      const url = params.request?.url || "";
+      if (isAudioUrl(url) && !audioUrls.includes(url)) {
+        audioUrls.push(url);
+      }
+    };
+
+    chrome.debugger.onEvent.addListener(audioListener);
+
+    try {
+      // 3. Tell content script to click audio buttons
+      const clickResult = await sendTabMessage(tabId, { action: "clickAudioButtons" });
+
+      // 4. Wait a bit for any remaining network requests
+      if (clickResult?.clickedCount > 0) {
+        await sleep(500);
+      }
+    } catch (e) {
+      // Content script not available or no buttons found
     }
-  } catch (e) {
-    // Audio extraction failed silently — screenshot-only mode
+
+    chrome.debugger.onEvent.removeListener(audioListener);
+    await sendDebuggerCommand(tabId, "Network.disable");
+
+    // 5. Transcribe collected audio URLs
+    if (audioUrls.length > 0) {
+      const sources = audioUrls.map((url, i) => ({
+        index: i + 1,
+        label: `Audio ${i + 1}`,
+        url
+      }));
+      transcriptions = await transcribeAllAudio(sources);
+    }
+  } finally {
+    chrome.debugger.detach(target, () => {});
   }
 
   return { screenshot, transcriptions };
+}
+
+function isAudioUrl(url) {
+  if (!url || url.startsWith('data:')) return false;
+  const lower = url.toLowerCase();
+
+  const audioExtensions = ['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.webm', '.opus', '.flac'];
+  if (audioExtensions.some(ext => lower.includes(ext))) return true;
+
+  // Duolingo CDN patterns for audio
+  if (lower.includes('d1vq87e9lcf771.cloudfront.net')) return true;
+  if (lower.includes('d35aaqx5ub95lt.cloudfront.net') && lower.includes('audio')) return true;
+  if (lower.includes('duolingo') && (lower.includes('tts') || lower.includes('audio'))) return true;
+
+  if (lower.includes('/audio/') || lower.includes('/tts/') || lower.includes('/sound/')) return true;
+
+  return false;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function sendTabMessage(tabId, message) {
