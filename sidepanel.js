@@ -204,7 +204,7 @@ async function solveWithAI(screenshotDataUrl) {
           ]
         }
       ],
-      max_completion_tokens: 1000000
+      max_completion_tokens: 128000
     })
   });
 
