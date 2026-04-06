@@ -72,14 +72,14 @@ async function captureAndTranscribe(tabId) {
       audioUrls.push(...networkUrls);
     }
 
-    // 4. Transcribe collected audio
+    // 4. Fetch audio as base64 from page context (avoids CORS) and transcribe
     if (audioUrls.length > 0) {
       const sources = audioUrls.map((url, i) => ({
         index: i + 1,
         label: `Audio ${i + 1}`,
         url
       }));
-      transcriptions = await transcribeAllAudio(sources);
+      transcriptions = await transcribeAllAudio(sources, tabId);
     }
   } finally {
     chrome.debugger.detach(target, () => {});
@@ -260,14 +260,15 @@ async function captureWithDebugger(tabId) {
 
 // --- Whisper transcription ---
 
-async function transcribeAllAudio(audioSources) {
+async function transcribeAllAudio(audioSources, tabId) {
   const { apiKey } = await chrome.storage.local.get("apiKey");
   if (!apiKey) return [];
 
   const results = [];
   for (const source of audioSources) {
     try {
-      const text = await transcribeAudioUrl(source.url, apiKey);
+      const base64Data = await fetchAudioFromPage(tabId, source.url);
+      const text = await transcribeAudioBase64(base64Data, source.url, apiKey);
       results.push({
         index: source.index,
         label: source.label,
@@ -284,17 +285,56 @@ async function transcribeAllAudio(audioSources) {
   return results;
 }
 
-async function transcribeAudioUrl(url, apiKey) {
-  const audioResponse = await fetch(url);
-  if (!audioResponse.ok) throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
+async function fetchAudioFromPage(tabId, url) {
+  const escapedUrl = url.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const script = `
+    (async function() {
+      try {
+        const resp = await fetch('${escapedUrl}');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject('FileReader failed');
+          reader.readAsDataURL(blob);
+        });
+      } catch(e) {
+        return 'ERROR:' + e.message;
+      }
+    })()
+  `;
 
-  const audioBlob = await audioResponse.blob();
+  const result = await sendDebuggerCommand(tabId, "Runtime.evaluate", {
+    expression: script,
+    awaitPromise: true,
+    returnByValue: true
+  });
 
-  const ext = url.includes(".mp3") ? "mp3" : url.includes(".ogg") ? "ogg" : "mp3";
-  const audioFile = new File([audioBlob], `audio.${ext}`, { type: audioBlob.type || `audio/${ext}` });
+  const value = result?.result?.value;
+  if (!value || value.startsWith('ERROR:')) {
+    throw new Error(value ? value.substring(6) : 'No data returned from page');
+  }
+  return value;
+}
+
+async function transcribeAudioBase64(dataUrl, originalUrl, apiKey) {
+  const base64Part = dataUrl.split(',')[1];
+  if (!base64Part) throw new Error('Invalid base64 data');
+
+  const binaryString = atob(base64Part);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  const ext = originalUrl.includes(".mp3") ? "mp3" : originalUrl.includes(".ogg") ? "ogg" : "mp3";
+  const mimeType = ext === "ogg" ? "audio/ogg" : "audio/mpeg";
+  const blob = new Blob([bytes], { type: mimeType });
+  const file = new File([blob], `audio.${ext}`, { type: mimeType });
 
   const formData = new FormData();
-  formData.append("file", audioFile);
+  formData.append("file", file);
   formData.append("model", "whisper-1");
 
   const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
