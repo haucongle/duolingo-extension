@@ -12,17 +12,6 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "captureTab") {
-    chrome.tabs.captureVisibleTab(null, { format: "png" })
-      .then((dataUrl) => {
-        sendResponse({ screenshot: dataUrl });
-      })
-      .catch((err) => {
-        sendResponse({ error: err.message || "Screenshot capture failed." });
-      });
-    return true;
-  }
-
   if (message.action === "solveFromContent") {
     handleSolveRequest(message.screenshot, sender.tab?.id).then(sendResponse);
     return true;

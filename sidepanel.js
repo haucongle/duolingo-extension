@@ -106,20 +106,24 @@ copyBtn.addEventListener("click", () => {
   setTimeout(() => { copyBtn.title = "Copy"; }, 1500);
 });
 
-function captureTab() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: "captureTab" }, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else if (response?.error) {
-        reject(new Error(response.error));
-      } else if (response?.screenshot) {
-        resolve(response.screenshot);
-      } else {
-        reject(new Error("Failed to capture screenshot. Make sure you're on a webpage."));
-      }
-    });
-  });
+async function ensureCapturePermission() {
+  const granted = await chrome.permissions.contains({ origins: ["<all_urls>"] });
+  if (granted) return true;
+  return chrome.permissions.request({ origins: ["<all_urls>"] });
+}
+
+async function captureTab() {
+  const hasPermission = await ensureCapturePermission();
+  if (!hasPermission) {
+    throw new Error("Screenshot permission denied. Please allow access when prompted.");
+  }
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) throw new Error("No active tab found.");
+
+  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+  if (!dataUrl) throw new Error("Capture returned empty. Make sure you're on a webpage.");
+  return dataUrl;
 }
 
 const SYSTEM_PROMPT = `You are an expert multilingual Duolingo tutor and exercise solver with deep knowledge of linguistics, grammar, and language pedagogy. You have mastered all languages available on Duolingo.
