@@ -5,7 +5,7 @@ A Chrome extension that captures Duolingo exercises and uses GPT-4o Vision to pr
 ## Features
 
 - **Screenshot Capture** — One-click capture of the current Duolingo exercise
-- **AI-Powered Solving** — Uses OpenAI GPT-4o Vision to analyze and solve exercises
+- **AI-Powered Solving** — Uses OpenAI GPT-5.4 Vision to analyze and solve exercises
 - **Multiple Exercise Types** — Supports translation, matching, fill-in-the-blank, listening, and more
 - **Keyboard Shortcut** — Press `Alt+S` to capture and solve without opening the popup
 - **In-Page Overlay** — Answers appear directly on the Duolingo page
@@ -27,7 +27,7 @@ A Chrome extension that captures Duolingo exercises and uses GPT-4o Vision to pr
 3. Enter your [OpenAI API key](https://platform.openai.com/api-keys)
 4. Click **Save Key**
 
-> You need an OpenAI API key with access to the `gpt-4o` model.
+> You need an OpenAI API key with access to the `gpt-5.4` model.
 
 ## Usage
 
@@ -38,14 +38,14 @@ A Chrome extension that captures Duolingo exercises and uses GPT-4o Vision to pr
 ## How It Works
 
 1. Captures a screenshot of the visible browser tab
-2. Sends the screenshot to OpenAI's GPT-4o Vision API
-3. AI identifies the exercise type and determines the correct answer
-4. Displays the answer with an explanation in the popup or as an overlay
+2. Sends the screenshot to OpenAI's GPT-5.4 Vision API
+3. AI identifies the exercise type, determines the correct answer with detailed reasoning
+4. Displays the answer with explanation, alternatives, and input instructions
 
 ## Tech Stack
 
 - Chrome Extension Manifest V3
-- OpenAI GPT-4o Vision API
+- OpenAI GPT-5.4 Vision API (latest, most capable model)
 - Vanilla HTML/CSS/JS (no build step required)
 
 ## Privacy
