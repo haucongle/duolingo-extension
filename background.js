@@ -1,5 +1,21 @@
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
+  chrome.contextMenus.create({
+    id: "duo-solve",
+    title: "Solve with Duo AI",
+    contexts: ["page"],
+    documentUrlPatterns: ["https://www.duolingo.com/*"]
+  });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "duo-solve" && tab) {
+    await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ action: "triggerSolve" }).catch(() => {});
+    }, 300);
+  }
 });
 
 chrome.commands.onCommand.addListener(async (command) => {

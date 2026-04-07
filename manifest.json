@@ -5,6 +5,7 @@
   "description": "Learn Duolingo faster — capture exercises and get AI-powered answers instantly.",
   "permissions": [
     "activeTab",
+    "contextMenus",
     "debugger",
     "storage",
     "tabs",
