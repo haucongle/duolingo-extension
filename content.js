@@ -46,34 +46,61 @@ function isFreshQuestion() {
   return true;
 }
 
+function waitForStableQuestion() {
+  return new Promise((resolve) => {
+    let lastSig = "";
+    let stableCount = 0;
+    const interval = setInterval(() => {
+      if (isOnFeedbackScreen()) {
+        stableCount = 0;
+        return;
+      }
+      if (!isFreshQuestion()) {
+        stableCount = 0;
+        return;
+      }
+      const sig = getChallengeSignature();
+      if (sig && sig === lastSig) {
+        stableCount++;
+        if (stableCount >= 3) {
+          clearInterval(interval);
+          resolve(sig);
+        }
+      } else {
+        lastSig = sig;
+        stableCount = 0;
+      }
+    }, 500);
+  });
+}
+
 function watchForExerciseChanges() {
   const target = document.querySelector('#root') || document.body;
   lastChallengeSignature = getChallengeSignature();
-  let debounceTimer = null;
   let wasFeedback = false;
+  let waiting = false;
 
   const observer = new MutationObserver(() => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      const onFeedback = isOnFeedbackScreen();
+    if (waiting) return;
 
-      if (onFeedback) {
-        wasFeedback = true;
-        return;
-      }
+    const onFeedback = isOnFeedbackScreen();
+    if (onFeedback) {
+      wasFeedback = true;
+      return;
+    }
 
-      if (!wasFeedback) return;
+    if (!wasFeedback) return;
 
-      if (!isFreshQuestion()) return;
-
-      const newSig = getChallengeSignature();
+    waiting = true;
+    waitForStableQuestion().then((newSig) => {
       if (newSig && newSig !== lastChallengeSignature) {
         lastChallengeSignature = newSig;
-        wasFeedback = false;
         removeOverlay();
-        chrome.runtime.sendMessage({ action: "exerciseChanged" }).catch(() => {});
+        chrome.storage.local.set({ exerciseChanged: Date.now() });
       }
-    }, 600);
+      wasFeedback = false;
+      waiting = false;
+    });
   });
 
   observer.observe(target, { childList: true, subtree: true });

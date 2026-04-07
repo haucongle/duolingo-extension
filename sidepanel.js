@@ -43,6 +43,14 @@ async function init() {
   }
 
   await checkTab();
+
+  const { pendingSolve } = await chrome.storage.local.get("pendingSolve");
+  if (pendingSolve) {
+    await chrome.storage.local.remove("pendingSolve");
+    if (!solving && !solveBtn.disabled) {
+      solveBtn.click();
+    }
+  }
 }
 
 chrome.tabs.onActivated.addListener(() => checkTab());
@@ -62,21 +70,21 @@ autoSolveToggle.addEventListener("change", () => {
 
 let solving = false;
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === "exerciseChanged") {
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.exerciseChanged?.newValue) {
+    chrome.storage.local.remove("exerciseChanged");
     result.classList.add("hidden");
     errorEl.classList.add("hidden");
     answerText.innerHTML = "";
 
-    if (autoSolveToggle.checked && !solving) {
-      setTimeout(() => {
-        if (!solving) solveBtn.click();
-      }, 300);
+    if (autoSolveToggle.checked && !solving && !solveBtn.disabled) {
+      solveBtn.click();
     }
   }
 
-  if (message.action === "triggerSolve") {
-    if (!solving) {
+  if (changes.pendingSolve?.newValue) {
+    chrome.storage.local.remove("pendingSolve");
+    if (!solving && !solveBtn.disabled) {
       solveBtn.click();
     }
   }
@@ -255,7 +263,12 @@ Structure your answer EXACTLY like this:
 
 📝 EXERCISE TYPE: [identified type]
 
-✅ CORRECT ANSWER: [the exact answer to input/select — this is the most important part]
+✅ CORRECT ANSWER: [Give ONLY what the user needs to do, based on exercise type:
+  - Fill-in-the-blank/word bank: list the tiles in order, comma-separated (e.g., "you have, you")
+  - Multiple choice / Complete the conversation: the option number and text (e.g., "2. I think you should apologize.")
+  - Translation / Typing: the exact text to type
+  - Matching: list each pair (e.g., "dog = chien, cat = chat")
+  - Select all correct: list all correct options]
 
 📋 ALL ACCEPTABLE ANSWERS: [list any alternative correct answers if applicable]
 
@@ -269,7 +282,7 @@ Structure your answer EXACTLY like this:
 ## Critical Rules
 1. **Accuracy is paramount** — never guess. Analyze every word, tile, image, and UI element in the screenshot.
 2. **Identify the source and target languages** from context clues (flags, UI language, exercise instructions).
-3. **For word bank exercises**, list the EXACT tiles to tap in the correct order.
+3. **For word bank / fill-in-the-blank exercises**: First identify ALL available word tiles. A tile may contain multiple words (e.g., "we have" is ONE tile). List which tile goes in which blank, in order, comma-separated.
 4. **For matching exercises**, list each pair explicitly.
 5. **For multiple choice**, identify the correct option(s) clearly (e.g., "Option 2" or the exact text).
 6. **Consider Duolingo's accepted answers** — Duolingo often accepts multiple valid translations. Provide the most natural/common one first, then alternatives.
@@ -279,13 +292,16 @@ Structure your answer EXACTLY like this:
 10. **Always give the answer in the format Duolingo expects** — don't add extra words or punctuation that would be marked wrong.`;
 
 
-const USER_PROMPT = `Look at this Duolingo exercise screenshot carefully. Identify every UI element, text, word tile, image, flag, and instruction visible.
+const USER_PROMPT = `Look at this Duolingo exercise screenshot carefully.
 
-Provide:
-1. The EXACT correct answer (most important — this must be precisely what the user should type or select)
-2. Alternative accepted answers if any
-3. Clear explanation of the grammar/vocabulary
-4. Step-by-step instructions for how to input the answer in the Duolingo interface
+STEP 1: Identify the exercise type.
+STEP 2: If there are word tiles/word bank at the bottom of the screen, list EVERY tile exactly as shown. Each rounded rectangle is ONE tile — it may contain multiple words (e.g., "he have" is a single tile, NOT two tiles "he" and "have").
+STEP 3: You have exactly those tiles to fill the blanks. Each tile is used AT MOST once. Every blank must be filled. Figure out which tile goes in which blank by reading the full sentence grammatically.
+
+Example: If tiles are ["he", "he have"] and sentence is "Should ___ speak? Should ___ spoken?", the answer is: he, he have (because "Should he have spoken" is grammatically correct).
+
+For multiple choice (numbered options 1, 2, etc.): just pick the correct option number and text.
+For typing exercises: give the exact text to type.
 
 Be thorough and precise. The user needs to get this 100% correct.`;
 

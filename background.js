@@ -12,9 +12,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "duo-solve" && tab) {
     await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
-    setTimeout(() => {
-      chrome.runtime.sendMessage({ action: "triggerSolve" }).catch(() => {});
-    }, 300);
+    await chrome.storage.local.set({ pendingSolve: Date.now() });
   }
 });
 
@@ -26,7 +24,7 @@ chrome.commands.onCommand.addListener(async (command) => {
     await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
 
     if (tab.url?.includes("duolingo.com")) {
-      chrome.runtime.sendMessage({ action: "triggerSolve" }).catch(() => {});
+      await chrome.storage.local.set({ pendingSolve: Date.now() });
     }
   }
 });
@@ -46,10 +44,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.action === "exerciseChanged") {
-    chrome.runtime.sendMessage({ action: "exerciseChanged" }).catch(() => {});
-    return;
-  }
 });
 
 // --- Debugger-based screenshot ---
