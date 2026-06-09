@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Duolingo AI Solver",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Learn Duolingo faster — capture exercises and get AI-powered answers instantly.",
   "permissions": [
     "activeTab",
@@ -14,7 +14,8 @@
   "host_permissions": [
     "https://www.duolingo.com/*",
     "https://*.cloudfront.net/*",
-    "https://api.openai.com/*"
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*"
   ],
   "action": {
     "default_icon": {

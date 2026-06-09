@@ -1,11 +1,11 @@
 # Duolingo AI Solver
 
-A Chrome extension that captures Duolingo exercises and uses GPT-5.4 Vision to provide instant answers — with auto-solve for hands-free learning.
+A Chrome extension that captures Duolingo exercises and uses AI vision (OpenAI or Anthropic) to provide instant answers — with auto-solve for hands-free learning.
 
 ## Features
 
 - **Side Panel UI** — Opens in Chrome's sidebar, stays visible while you learn
-- **AI-Powered Solving** — Uses OpenAI GPT-5.4 Vision to analyze and solve exercises
+- **AI-Powered Solving** — Choose between OpenAI GPT-5.4 Vision or Anthropic Claude Vision to analyze and solve exercises
 - **Auto-Solve** — Toggle on to automatically solve each new exercise after you click Continue
 - **Clean Answer Display** — Shows only the correct answer; exercise type, explanation, and details collapsed under "More"
 - **Multiple Exercise Types** — Translation, matching, fill-in-the-blank, listening, word bank, select meaning, stories, and more
@@ -26,10 +26,13 @@ A Chrome extension that captures Duolingo exercises and uses GPT-5.4 Vision to p
 
 1. Click the extension icon in Chrome toolbar to open the side panel
 2. Click the settings gear icon
-3. Enter your [OpenAI API key](https://platform.openai.com/api-keys)
-4. Click **Save Key**
+3. Choose your **AI Provider** (OpenAI or Anthropic)
+4. Enter the matching API key:
+   - [OpenAI API key](https://platform.openai.com/api-keys) — needs access to the `gpt-5.4` model
+   - [Anthropic API key](https://console.anthropic.com/settings/keys) — uses the `claude-sonnet-4-5` model
+5. Click **Save Key**
 
-> You need an OpenAI API key with access to the `gpt-5.4` model.
+> Keys for each provider are stored separately, so you can switch providers without re-entering them.
 
 ## Usage
 
@@ -50,7 +53,7 @@ A Chrome extension that captures Duolingo exercises and uses GPT-5.4 Vision to p
 ## How It Works
 
 1. Attaches Chrome Debugger (CDP) to capture a screenshot of the active tab
-2. Sends the screenshot to GPT-5.4 Vision API
+2. Sends the screenshot to your selected AI vision API (OpenAI or Anthropic)
 3. AI identifies the exercise type and determines the correct answer
 4. Displays only the answer in the side panel (details available under "More")
 5. Content script detects when you click Continue and a new exercise loads, triggering auto-solve
@@ -59,13 +62,13 @@ A Chrome extension that captures Duolingo exercises and uses GPT-5.4 Vision to p
 
 - Chrome Extension Manifest V3
 - Chrome DevTools Protocol (CDP) for screenshot capture
-- OpenAI GPT-5.4 Vision API
+- OpenAI GPT-5.4 Vision API / Anthropic Claude Vision API
 - Vanilla HTML/CSS/JS (no build step required)
 
 ## Privacy
 
 - Your API key is stored locally in Chrome's extension storage
-- Screenshots are sent directly to OpenAI's API and are not stored by the extension
+- Screenshots are sent directly to your selected provider's API (OpenAI or Anthropic) and are not stored by the extension
 - No data is collected or sent to any third-party servers
 
 ## License

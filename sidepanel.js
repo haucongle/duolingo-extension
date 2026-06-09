@@ -3,7 +3,10 @@ const $ = (sel) => document.querySelector(sel);
 const settingsBtn = $("#settingsBtn");
 const settingsPanel = $("#settingsPanel");
 const mainPanel = $("#mainPanel");
+const providerSelect = $("#providerSelect");
 const apiKeyInput = $("#apiKeyInput");
+const apiKeyLabel = $("#apiKeyLabel");
+const footerText = $("#footerText");
 const toggleKey = $("#toggleKey");
 const saveKeyBtn = $("#saveKeyBtn");
 const keyStatus = $("#keyStatus");
@@ -20,6 +23,44 @@ const noApiKey = $("#noApiKey");
 let isOnDuolingo = false;
 let hasApiKey = false;
 
+const PROVIDERS = {
+  openai: {
+    label: "OpenAI API Key",
+    placeholder: "sk-...",
+    footer: "Powered by GPT-5.4 Vision",
+    keyName: "openaiKey"
+  },
+  anthropic: {
+    label: "Anthropic API Key",
+    placeholder: "sk-ant-...",
+    footer: "Powered by Claude Vision",
+    keyName: "anthropicKey"
+  }
+};
+
+let provider = "openai";
+
+function providerConfig() {
+  return PROVIDERS[provider] || PROVIDERS.openai;
+}
+
+async function getActiveKey() {
+  const cfg = providerConfig();
+  const data = await chrome.storage.local.get(cfg.keyName);
+  return data[cfg.keyName] || "";
+}
+
+async function applyProviderUI() {
+  const cfg = providerConfig();
+  providerSelect.value = provider;
+  apiKeyLabel.textContent = cfg.label;
+  footerText.textContent = cfg.footer;
+  const savedKey = await getActiveKey();
+  hasApiKey = !!savedKey;
+  apiKeyInput.value = "";
+  apiKeyInput.placeholder = savedKey ? "•••••••• (saved)" : cfg.placeholder;
+}
+
 async function checkTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   isOnDuolingo = tab?.url?.includes("duolingo.com") ?? false;
@@ -34,8 +75,16 @@ async function checkTab() {
 }
 
 async function init() {
-  const { apiKey } = await chrome.storage.local.get("apiKey");
-  hasApiKey = !!apiKey;
+  const stored = await chrome.storage.local.get(["provider", "apiKey", "openaiKey"]);
+
+  // Migrate legacy single-key storage to per-provider storage.
+  if (stored.apiKey && !stored.openaiKey) {
+    await chrome.storage.local.set({ openaiKey: stored.apiKey });
+    await chrome.storage.local.remove("apiKey");
+  }
+
+  provider = stored.provider === "anthropic" ? "anthropic" : "openai";
+  await applyProviderUI();
 
   if (!hasApiKey) {
     noApiKey.classList.remove("hidden");
@@ -98,6 +147,15 @@ toggleKey.addEventListener("click", () => {
   apiKeyInput.type = apiKeyInput.type === "password" ? "text" : "password";
 });
 
+providerSelect.addEventListener("change", async () => {
+  provider = providerSelect.value === "anthropic" ? "anthropic" : "openai";
+  await chrome.storage.local.set({ provider });
+  await applyProviderUI();
+  keyStatus.textContent = "";
+  noApiKey.classList.toggle("hidden", hasApiKey);
+  solveBtn.disabled = !isOnDuolingo || !hasApiKey;
+});
+
 saveKeyBtn.addEventListener("click", async () => {
   const key = apiKeyInput.value.trim();
   if (!key) {
@@ -106,13 +164,14 @@ saveKeyBtn.addEventListener("click", async () => {
     return;
   }
 
-  await chrome.storage.local.set({ apiKey: key });
+  await chrome.storage.local.set({ [providerConfig().keyName]: key });
   hasApiKey = true;
   keyStatus.textContent = "Key saved successfully!";
   keyStatus.style.color = "var(--green)";
   noApiKey.classList.add("hidden");
   solveBtn.disabled = !isOnDuolingo;
   apiKeyInput.value = "";
+  apiKeyInput.placeholder = "•••••••• (saved)";
 
   setTimeout(() => {
     keyStatus.textContent = "";
@@ -306,9 +365,15 @@ For typing exercises: give the exact text to type.
 Be thorough and precise. The user needs to get this 100% correct.`;
 
 async function solveWithAI(screenshotDataUrl) {
-  const { apiKey } = await chrome.storage.local.get("apiKey");
+  const apiKey = await getActiveKey();
   if (!apiKey) throw new Error("API key not set. Open settings to configure.");
 
+  return provider === "anthropic"
+    ? solveWithAnthropic(apiKey, screenshotDataUrl)
+    : solveWithOpenAI(apiKey, screenshotDataUrl);
+}
+
+async function solveWithOpenAI(apiKey, screenshotDataUrl) {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -341,6 +406,52 @@ async function solveWithAI(screenshotDataUrl) {
 
   const data = await response.json();
   return data.choices?.[0]?.message?.content || "No response from AI.";
+}
+
+async function solveWithAnthropic(apiKey, screenshotDataUrl) {
+  const match = /^data:(image\/\w+);base64,(.*)$/.exec(screenshotDataUrl);
+  const mediaType = match ? match[1] : "image/png";
+  const base64Data = match ? match[2] : screenshotDataUrl.replace(/^data:[^,]*,/, "");
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5",
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: USER_PROMPT },
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: base64Data }
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const text = (data.content || [])
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n")
+    .trim();
+  return text || "No response from AI.";
 }
 
 init();

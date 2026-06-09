@@ -26,7 +26,14 @@
     <!-- Settings Panel -->
     <div id="settingsPanel" class="panel hidden">
       <div class="field">
-        <label for="apiKeyInput">OpenAI API Key</label>
+        <label for="providerSelect">AI Provider</label>
+        <select id="providerSelect">
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="apiKeyInput"><span id="apiKeyLabel">OpenAI API Key</span></label>
         <div class="input-row">
           <input type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
           <button id="toggleKey" class="icon-btn small" title="Show/Hide">
@@ -47,7 +54,7 @@
 
       <div id="noApiKey" class="message-box info hidden">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        <span>Set your OpenAI API key in settings to get started</span>
+        <span>Set your AI API key in settings to get started</span>
       </div>
 
       <button id="solveBtn" class="btn btn-primary btn-lg" disabled>
@@ -93,7 +100,7 @@
     </div>
 
     <footer>
-      <span>Powered by GPT-5.4 Vision</span>
+      <span id="footerText">Powered by GPT-5.4 Vision</span>
     </footer>
   </div>
 
